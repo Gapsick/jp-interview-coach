@@ -1,0 +1,6 @@
+# Docker 빌드 시 제외 (백엔드)
+node_modules
+dist
+uploads
+data
+.env

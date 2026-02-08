@@ -1,0 +1,3 @@
+# Docker 빌드 시 제외 (프론트엔드)
+node_modules
+dist

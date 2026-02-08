@@ -1,0 +1,26 @@
+# Dependencies (의존성 - npm install로 재설치 가능)
+node_modules/
+
+# Environment (환경 변수 - API 키, 비밀 키 포함 → 절대 올리면 안 됨!)
+.env
+backend/.env
+
+# Backend build output (TypeScript 컴파일 결과물 - npm run build로 재생성 가능)
+backend/dist/
+
+# Upload files (업로드된 오디오/비디오 - 임시 파일)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Data files (사용자/세션 JSON 데이터 - 개인정보 포함)
+backend/data/sessions.json
+backend/data/users.json
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/

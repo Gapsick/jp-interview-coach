@@ -1,0 +1,8 @@
+# Docker 빌드 시 제외할 파일/폴더
+# (이미지 크기를 줄이고 빌드 속도를 높이기 위함)
+
+node_modules
+dist
+.git
+.env
+*.md
