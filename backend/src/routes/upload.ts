@@ -79,7 +79,8 @@ type MulterRequest = Request & { file?: Express.Multer.File };
  */
 uploadRouter.post('/analyze', upload.single('file'), async (req: MulterRequest, res: Response) => {
   // 세션 ID가 있으면 기존 세션 사용, 없으면 새 세션 생성
-  const sessionId = getOrCreateSession((req.body as any)?.sessionId);
+  // await 추가: getOrCreateSession이 MongoDB 조회를 하므로 비동기
+  const sessionId = await getOrCreateSession((req.body as any)?.sessionId);
   const filePath = req.file?.path;       // 업로드된 파일의 디스크 경로
   const mimeType = req.file?.mimetype || ''; // 파일의 MIME 타입 (예: "audio/webm")
 
@@ -150,7 +151,8 @@ uploadRouter.post('/analyze', upload.single('file'), async (req: MulterRequest, 
       practiceSentences,
       rawAnalysis: { transcriptLength: trimmedTranscript.length },
     };
-    addResult(sessionId, result);
+    // await 추가: MongoDB에 분석 결과를 저장하는 비동기 작업
+    await addResult(sessionId, result);
 
     // ========== 6단계: 클라이언트에 응답 ==========
     return res.json({

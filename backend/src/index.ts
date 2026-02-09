@@ -2,25 +2,26 @@
  * Interview Pronunciation Coach Agent - Backend 진입점 (메인 서버 파일)
  *
  * 이 파일이 하는 일:
- * 1. Express 서버를 생성하고 미들웨어(CORS, JSON 파싱)를 설정
- * 2. 이전 세션 데이터를 불러옴 (서버 재시작 시 데이터 복원)
+ * 1. MongoDB에 연결
+ * 2. Express 서버를 생성하고 미들웨어(CORS, JSON 파싱)를 설정
  * 3. API 라우터를 연결하고 서버를 시작
+ *
+ * [MongoDB 전환으로 인한 변경]
+ * - 이전: loadSessions(), loadUsers()로 JSON 파일에서 데이터 로드
+ * - 현재: connectDB()로 MongoDB 연결 → Mongoose가 자동으로 데이터 관리
+ * - 서버 시작 순서: MongoDB 연결 성공 → Express 서버 시작
+ *   (DB 연결 전에 API 요청을 받으면 에러가 나므로, 연결 후에 서버를 시작)
  */
 import express from 'express';       // Node.js 웹 프레임워크
 import cors from 'cors';             // Cross-Origin 요청 허용 (프론트엔드 ↔ 백엔드 통신용)
 import path from 'path';             // 파일 경로 유틸리티
 import { fileURLToPath } from 'url'; // ES Module에서 __dirname을 쓰기 위한 유틸
 
-import { config } from './config.js';                    // 환경 설정 (API 키, 포트 등)
-import { loadSessions } from './services/sessionStore.js'; // 세션(사용자 분석 이력) 불러오기
-import { loadUsers } from './services/userStore.js';       // 사용자 데이터 불러오기
+import { config } from './config.js';                    // 환경 설정 (API 키, 포트, MongoDB URI 등)
+import { connectDB } from './services/db.js';            // MongoDB 연결 함수
 import { uploadRouter } from './routes/upload.js';        // 파일 업로드 & 분석 라우터
 import { authRouter } from './routes/authRouter.js';      // 인증(회원가입/로그인) 라우터
 import { authMiddleware } from './middleware/authMiddleware.js'; // JWT 인증 미들웨어
-
-// 서버 시작 전에 저장된 데이터를 메모리에 로드
-loadSessions(); // 세션 데이터 (data/sessions.json → Map)
-loadUsers();    // 사용자 데이터 (data/users.json → Map)
 
 // 디버그 로그: API 키가 설정되어 있는지, Mock 모드인지 콘솔에 출력 (키 값 자체는 출력 안 함)
 console.log('[Config] OpenAI key:', config.openaiApiKey ? `set (length ${config.openaiApiKey.length})` : 'NOT SET');
@@ -67,7 +68,27 @@ app.get('/api/status', (_, res) => {
   });
 });
 
-// 서버 시작: 설정된 포트(기본 3000)에서 리스닝 시작
-app.listen(config.port, () => {
-  console.log(`Interview Coach API listening on http://localhost:${config.port}`);
-});
+/**
+ * 서버 시작 함수 (async)
+ *
+ * [왜 async 함수로 감쌌나?]
+ * - MongoDB 연결(connectDB)이 비동기 작업이므로 await가 필요
+ * - 최상위 레벨에서 await를 쓸 수도 있지만, 함수로 감싸면 에러 처리가 깔끔함
+ *
+ * [시작 순서]
+ * 1. MongoDB 연결 (실패하면 서버 시작 안 함)
+ * 2. Express 서버 리스닝 시작
+ */
+async function startServer() {
+  // 1단계: MongoDB 연결
+  // connectDB() 내부에서 연결 실패 시 process.exit(1)로 종료됨
+  await connectDB();
+
+  // 2단계: Express 서버 시작 (MongoDB 연결 성공 후에만 실행됨)
+  app.listen(config.port, () => {
+    console.log(`Interview Coach API listening on http://localhost:${config.port}`);
+  });
+}
+
+// 서버 시작 실행
+startServer();

@@ -1,5 +1,5 @@
 # ============================================================
-# Docker Compose - 프론트엔드 + 백엔드를 한번에 실행
+# Docker Compose - 프론트엔드 + 백엔드 + MongoDB를 한번에 실행
 #
 # 사용법:
 #   docker-compose up --build        (빌드 + 실행)
@@ -7,9 +7,30 @@
 #   docker-compose down              (중지)
 #
 # 접속: http://localhost (80 포트)
+#
+# ============================================================
+# MongoDB를 Docker로 실행하면 좋은 점:
+# - MongoDB를 PC에 직접 설치할 필요 없음
+# - 컨테이너를 삭제해도 volume 덕분에 데이터는 유지됨
+# - 팀원 모두 동일한 환경에서 개발 가능
 # ============================================================
 
 services:
+  # ---- MongoDB: 데이터베이스 서버 ----
+  # 이 컨테이너가 MongoDB 서버 역할을 함
+  # 백엔드에서 mongodb://mongo:27017/interview-coach 로 접속
+  # (Docker 네트워크 안에서는 서비스 이름 "mongo"가 호스트명이 됨)
+  mongo:
+    image: mongo:7            # MongoDB 7.x 공식 이미지 (Docker Hub에서 자동 다운로드)
+    container_name: interview-mongo
+    ports:
+      - "27017:27017"         # 호스트 PC에서도 localhost:27017로 접근 가능 (디버깅용)
+    volumes:
+      # mongo-data 볼륨에 데이터를 저장 → 컨테이너를 삭제해도 데이터 유지
+      # /data/db는 MongoDB가 데이터를 저장하는 기본 경로
+      - mongo-data:/data/db
+    restart: unless-stopped
+
   # ---- 백엔드: Express API 서버 ----
   backend:
     build: ./backend
@@ -20,12 +41,16 @@ services:
       - PORT=3000
       - OPENAI_API_KEY=${OPENAI_API_KEY}   # .env 파일에서 읽어옴
       - JWT_SECRET=${JWT_SECRET:-interview-coach-secret-key-2026}
-      # Docker(Linux)에서는 ffmpeg가 시스템에 설치되므로 경로 지정 불필요
-      # - FFMPEG_PATH=  (비워두면 시스템 PATH에서 자동 탐색)
+      # Docker 내부에서 MongoDB 컨테이너에 접속하는 주소
+      # "mongo"는 위에서 정의한 서비스 이름 → Docker가 자동으로 IP를 연결해줌
+      # localhost가 아니라 "mongo"를 쓰는 이유:
+      #   각 컨테이너는 독립된 네트워크 → localhost는 자기 자신만 가리킴
+      #   서비스 이름을 쓰면 Docker가 해당 컨테이너의 IP로 자동 변환
+      - MONGODB_URI=mongodb://mongo:27017/interview-coach
     volumes:
-      # data, uploads 폴더를 호스트와 공유 (컨테이너 재시작 시에도 데이터 유지)
-      - backend-data:/app/data
       - backend-uploads:/app/uploads
+    depends_on:
+      - mongo                 # MongoDB가 먼저 시작된 후 백엔드 시작
     restart: unless-stopped
 
   # ---- 프론트엔드: nginx + Vue 빌드 결과물 ----
@@ -39,6 +64,7 @@ services:
     restart: unless-stopped
 
 # 데이터 영속화를 위한 Docker 볼륨
+# 볼륨은 컨테이너와 독립적으로 존재 → 컨테이너를 삭제해도 데이터가 남아있음
 volumes:
-  backend-data:       # 사용자/세션 JSON 데이터
-  backend-uploads:    # 업로드된 오디오/비디오 파일
+  mongo-data:         # MongoDB 데이터 (사용자, 세션 등 모든 DB 데이터)
+  backend-uploads:    # 업로드된 오디오/비디오 파일 (임시)

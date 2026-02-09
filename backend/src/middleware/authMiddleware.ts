@@ -7,6 +7,10 @@
  * - 유효하면 req.user에 사용자 정보를 설정하고 다음 미들웨어로 진행
  * - 유효하지 않으면 401 Unauthorized 응답
  *
+ * [MongoDB 전환으로 인한 변경]
+ * - verifyToken이 async 함수로 변경됨 (MongoDB 조회가 비동기이므로)
+ * - 따라서 이 미들웨어도 async로 변경
+ *
  * 사용법: 보호할 라우트 앞에 이 미들웨어를 추가
  * 예: app.use('/api', authMiddleware, uploadRouter);
  */
@@ -24,7 +28,7 @@ declare global {
 }
 
 /**
- * 인증 미들웨어 함수
+ * 인증 미들웨어 함수 (async 버전)
  *
  * 요청 헤더에서 "Authorization: Bearer <토큰>" 형태로 토큰을 추출하고 검증
  *
@@ -32,7 +36,7 @@ declare global {
  * @param res - Express 응답 객체
  * @param next - 다음 미들웨어로 넘기는 함수
  */
-export function authMiddleware(req: Request, res: Response, next: NextFunction) {
+export async function authMiddleware(req: Request, res: Response, next: NextFunction) {
   // Authorization 헤더 가져오기 (예: "Bearer eyJhbGci...")
   const authHeader = req.headers.authorization;
 
@@ -49,7 +53,8 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
 
   try {
     // JWT 토큰 검증 → 성공하면 사용자 정보 반환
-    const user = verifyToken(token);
+    // await 추가: verifyToken이 MongoDB 조회를 하므로 비동기
+    const user = await verifyToken(token);
 
     // req.user에 사용자 정보 저장 → 이후 라우트 핸들러에서 사용 가능
     req.user = user;

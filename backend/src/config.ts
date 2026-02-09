@@ -34,4 +34,11 @@ export const config = {
   dataDir: 'data',                                  // 세션 데이터 저장 폴더
   ffmpegPath: (process.env.FFMPEG_PATH || '').trim(), // ffmpeg 실행 파일 경로 (시스템 PATH에 없을 때 지정)
   jwtSecret: (process.env.JWT_SECRET || 'default-secret-key').trim(), // JWT 토큰 서명용 비밀 키
+
+  // ===== MongoDB 설정 =====
+  // MongoDB 연결 문자열 (Connection String)
+  // 형식: mongodb://아이디:비밀번호@호스트:포트/데이터베이스명
+  // 로컬 MongoDB는 보통 mongodb://localhost:27017/DB이름
+  // MongoDB Atlas(클라우드)를 쓰면 mongodb+srv://... 형태
+  mongoUri: (process.env.MONGODB_URI || 'mongodb://localhost:27017/interview-coach').trim(),
 } as const;
