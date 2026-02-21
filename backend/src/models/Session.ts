@@ -56,6 +56,46 @@ export type RuleIssue = {
   detail?: string;                         // 상세 설명 (예: '3回 発見')
 };
 
+/** Whisper가 반환한 단어별 타임스탬프 */
+export type WordTimestamp = {
+  word: string;    // 인식된 단어 (예: "こんにちは")
+  start: number;   // 단어 시작 시간 (초)
+  end: number;     // 단어 끝 시간 (초)
+};
+
+/** 발음 분석에서 검출된 쉼(pause) */
+export type DetectedPause = {
+  afterWord: string;    // 쉼 직전 단어
+  beforeWord: string;   // 쉼 직후 단어
+  duration: number;     // 쉼 길이 (초)
+  position: number;     // 단어 배열에서의 인덱스
+};
+
+/** 발음이 불명확한 구간 (Whisper 신뢰도가 낮은 세그먼트) */
+export type UnclearSegment = {
+  text: string;           // 해당 구간의 텍스트
+  confidence: number;     // 신뢰도 (0~1, 낮을수록 불명확)
+};
+
+/**
+ * 발음 분석 결과 타입
+ *
+ * Whisper의 단어별 타임스탬프 + 세그먼트 신뢰도를 분석하여 생성
+ * - 말하기 속도(WPM), 쉼 패턴, 불명확 구간, 종합 점수를 포함
+ */
+export type PronunciationAnalysis = {
+  overallScore: number;          // 종합 발음 점수 (0~100)
+  speakingSpeed: {
+    wpm: number;                 // 분당 단어수 (Words Per Minute)
+    rating: 'too_slow' | 'slow' | 'good' | 'fast' | 'too_fast';
+  };
+  pauses: DetectedPause[];       // 검출된 긴 쉼 목록
+  unclearSegments: UnclearSegment[]; // 불명확한 발음 구간 목록
+  totalDuration: number;         // 전체 오디오 길이 (초)
+  wordCount: number;             // 총 단어 수
+  words: WordTimestamp[];        // 전체 단어별 타임스탬프 (프론트엔드 표시용)
+};
+
 /** 한 번의 분석 결과 타입 */
 export type AnalysisResult = {
   transcript: string;              // STT로 인식된 텍스트
@@ -63,6 +103,7 @@ export type AnalysisResult = {
   topIssues: string[];             // LLM이 생성한 주요 개선점
   pronunciationTips: string[];     // LLM이 생성한 발음 팁
   practiceSentences: string[];     // LLM이 생성한 연습 문장
+  pronunciation?: PronunciationAnalysis; // 발음 분석 결과 (Whisper 단어 타임스탬프 기반)
   rawAnalysis?: Record<string, unknown>; // 기타 원본 분석 데이터
 };
 
@@ -118,6 +159,11 @@ const historyItemSchema = new mongoose.Schema(
     topIssues: [{ type: String }],                  // 주요 개선점 문자열 배열
     pronunciationTips: [{ type: String }],          // 발음 팁 문자열 배열
     practiceSentences: [{ type: String }],          // 연습 문장 문자열 배열
+
+    // 발음 분석 결과 (Whisper 단어 타임스탬프 기반)
+    // Mixed 타입: PronunciationAnalysis 객체를 그대로 저장
+    pronunciation: { type: mongoose.Schema.Types.Mixed },
+
     rawAnalysis: { type: mongoose.Schema.Types.Mixed }, // 기타 데이터 (자유 형식)
   },
   { _id: false }
