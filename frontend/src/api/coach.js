@@ -4,6 +4,7 @@
  * 이 파일이 하는 일:
  * - 프론트엔드에서 파일(오디오/비디오)을 백엔드 /api/analyze 로 전송
  * - 백엔드의 분석 결과(인식 텍스트, 코칭 피드백 등)를 받아서 반환
+ * - 세션/히스토리 조회 API 호출 (분석 이력 보기, 세션 복원)
  * - JWT 토큰을 Authorization 헤더에 담아서 인증된 요청을 보냄
  */
 
@@ -26,7 +27,7 @@ const API_BASE = '/api';
  *   - practiceSentences: 연습 문장 배열
  *   - error: 에러 메시지 (에러 시)
  */
-export async function analyzeFile(file, sessionId) {
+export async function analyzeFile(file, sessionId, referenceText) {
   // FormData로 multipart 요청 구성 (파일 업로드용)
   const form = new FormData();
 
@@ -35,8 +36,9 @@ export async function analyzeFile(file, sessionId) {
   // File 객체면 원본 파일명 사용, Blob이면 기본 이름 'recording.webm' 사용
   const name = file instanceof File ? file.name : 'recording.webm';
 
-  form.append('file', blob, name);                       // 파일 첨부
-  if (sessionId) form.append('sessionId', sessionId);    // 세션 ID 첨부 (있을 때만)
+  form.append('file', blob, name);                                           // 파일 첨부
+  if (sessionId) form.append('sessionId', sessionId);                        // 세션 ID 첨부 (있을 때만)
+  if (referenceText) form.append('referenceText', referenceText.trim());     // 원문 텍스트 (있을 때만)
 
   // 요청 헤더 구성: JWT 토큰이 있으면 Authorization 헤더 추가
   const headers = {};
@@ -59,5 +61,49 @@ export async function analyzeFile(file, sessionId) {
   if (!res.ok) {
     throw new Error(data.error || `HTTP ${res.status}`);
   }
+  return data;
+}
+
+// ===== 세션/히스토리 조회 API =====
+
+/**
+ * 내 최근 세션 조회 (페이지 새로고침 시 세션 복원용)
+ *
+ * [왜 필요한가?]
+ * - sessionId가 Vue의 ref()에만 저장되어 있어서, 페이지 새로고침하면 사라짐
+ * - 이 API로 DB에서 유저의 가장 최근 세션을 가져와서 sessionId를 복원
+ * - → 이전 분석과 같은 세션에서 계속 이어서 분석 가능
+ *
+ * @returns { Promise<Object> } { session: { sessionId, history } | null }
+ */
+export async function getLatestSession() {
+  const token = getToken();
+  if (!token) return { session: null };
+
+  const res = await fetch(`${API_BASE}/sessions/latest`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+/**
+ * 특정 세션의 전체 히스토리 조회 (히스토리 탭에서 상세 보기용)
+ *
+ * @param { string } sessionId - 조회할 세션 ID
+ * @returns { Promise<Object> } { history: [{ at, transcript, issues, topIssues, ... }, ...] }
+ */
+export async function getSessionHistory(sessionId) {
+  const token = getToken();
+  if (!token) throw new Error('로그인이 필요합니다.');
+
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/history`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }

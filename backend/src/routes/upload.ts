@@ -17,9 +17,9 @@ import { fileURLToPath } from 'url';
 import { config } from '../config.js';
 import { extractAudioFromVideo, getAudioDuration, toSttReadyAudio } from '../services/audioExtractor.js';
 import { transcribe } from '../services/transcription.js';
-import { analyzeTranscript } from '../services/transcriptAnalyzer.js';
+import { analyzeTranscript, analyzePronunciation } from '../services/transcriptAnalyzer.js';
 import { generateCoachingFeedback } from '../services/coachingLLM.js';
-import { getOrCreateSession, addResult, type AnalysisResult } from '../services/sessionStore.js';
+import { getOrCreateSession, addResult, getSession, type AnalysisResult } from '../services/sessionStore.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -69,6 +69,7 @@ type MulterRequest = Request & { file?: Express.Multer.File };
  * 요청: multipart/form-data
  *   - file: 오디오 또는 비디오 파일 (필수)
  *   - sessionId: 기존 세션 ID (선택, 없으면 새로 생성)
+ *   - referenceText: 원문 텍스트 (선택, 있으면 단어별 비교 모드)
  *
  * 응답: JSON
  *   - status: 'success' | 'no_speech' | 'error'
@@ -78,11 +79,16 @@ type MulterRequest = Request & { file?: Express.Multer.File };
  *   - practiceSentences: 연습 문장 목록
  */
 uploadRouter.post('/analyze', upload.single('file'), async (req: MulterRequest, res: Response) => {
-  // 세션 ID가 있으면 기존 세션 사용, 없으면 새 세션 생성
-  // await 추가: getOrCreateSession이 MongoDB 조회를 하므로 비동기
-  const sessionId = await getOrCreateSession((req.body as any)?.sessionId);
+  // req.user는 authMiddleware가 설정한 인증된 사용자 정보 (SafeUser 타입)
+  // userId를 세션에 연결하여 "이 세션이 누구의 것인지" 기록
+  const userId = req.user?.id;
+
+  // 세션 ID가 있으면 기존 세션 사용, 없으면 새 세션 생성 (userId도 같이 전달)
+  const sessionId = await getOrCreateSession((req.body as any)?.sessionId, userId);
   const filePath = req.file?.path;       // 업로드된 파일의 디스크 경로
   const mimeType = req.file?.mimetype || ''; // 파일의 MIME 타입 (예: "audio/webm")
+  // 원문 텍스트 (있으면 reference 모드 → 단어별 비교, 없으면 free 모드)
+  const referenceText = ((req.body as any)?.referenceText || '').trim() || undefined;
 
   // 파일이 없으면 400 에러 응답
   if (!filePath || !req.file) {
@@ -111,7 +117,8 @@ uploadRouter.post('/analyze', upload.single('file'), async (req: MulterRequest, 
 
     // ========== 2단계: STT (음성 → 텍스트 변환) ==========
     // OpenAI Whisper API를 사용하여 일본어 음성을 텍스트로 변환
-    const { text: transcript } = await transcribe(audioPath);
+    // words: 단어별 타임스탬프, segments: 세그먼트별 신뢰도, duration: 전체 길이
+    const { text: transcript, words, segments, duration } = await transcribe(audioPath);
 
     // 인식된 텍스트가 너무 짧으면(2자 미만) → 음성이 없는 것으로 판단
     const trimmedTranscript = (transcript || '').trim();
@@ -137,18 +144,40 @@ uploadRouter.post('/analyze', upload.single('file'), async (req: MulterRequest, 
     // 필러(えーと 등), 짧은 답변, 반복 표현 등을 정규식으로 검출
     const { issues } = analyzeTranscript(trimmedTranscript);
 
+    // ========== 3.5단계: 발음 분석 (Whisper 단어 타임스탬프 기반) ==========
+    // 말하기 속도(WPM), 쉼 패턴, 불명확 발음 구간을 분석하여 종합 점수 산출
+    const pronunciation = analyzePronunciation(words, segments, duration);
+
+    // ========== 3.7단계: 기존 히스토리 조회 (LLM 누적 코칭용) ==========
+    // 현재 세션의 과거 분석 이력을 가져와서 LLM에 전달
+    // → LLM이 "이전보다 필러가 줄었네요" 같은 누적 피드백을 생성할 수 있음
+    const currentSession = await getSession(sessionId);
+    const previousHistory = currentSession?.history ?? [];
+
     // ========== 4단계: LLM 코칭 피드백 생성 ==========
-    // GPT-4o-mini에게 발화 내용 + 검출된 이슈를 보내서 코칭 피드백을 받음
-    const { topIssues, pronunciationTips, practiceSentences } = await generateCoachingFeedback(trimmedTranscript, issues);
+    // referenceText가 있으면 원문 비교 모드, 없으면 발음 수치 기반 모드
+    const coaching = await generateCoachingFeedback(
+      trimmedTranscript,
+      issues,
+      pronunciation,
+      previousHistory,
+      referenceText,
+    );
+    const {
+      topIssues, pronunciationTips, practiceSentences,
+      overallScore, pronunciationAnalysis: pronunciationAnalysisLLM,
+      wordDiff, historyNote,
+    } = coaching;
 
     // ========== 5단계: 세션에 결과 저장 ==========
-    // 분석 결과를 세션 히스토리에 추가 (data/sessions.json에 영구 저장)
+    // 분석 결과를 세션 히스토리에 추가 (MongoDB에 영구 저장)
     const result: AnalysisResult = {
       transcript: trimmedTranscript,
       issues,
       topIssues,
       pronunciationTips,
       practiceSentences,
+      pronunciation, // Whisper 기반 발음 분석 결과
       rawAnalysis: { transcriptLength: trimmedTranscript.length },
     };
     // await 추가: MongoDB에 분석 결과를 저장하는 비동기 작업
@@ -158,11 +187,17 @@ uploadRouter.post('/analyze', upload.single('file'), async (req: MulterRequest, 
     return res.json({
       sessionId,
       status: 'success',
-      transcript: trimmedTranscript,      // 인식된 텍스트
-      transcriptWarning,                  // 짧은 녹음 경고 (있을 때만)
-      topIssues,                          // 주요 개선점 목록
-      pronunciationTips,                  // 발음 팁 목록
-      practiceSentences,                  // 연습 문장 목록
+      transcript: trimmedTranscript,                // 인식된 텍스트
+      transcriptWarning,                            // 짧은 녹음 경고 (있을 때만)
+      topIssues,                                    // 주요 개선점 목록
+      pronunciationTips,                            // 발음 팁 목록
+      practiceSentences,                            // 연습 문장 목록
+      pronunciation,                                // Whisper 발음 분석 결과
+      // LLM 코칭 데이터
+      overallScore,
+      pronunciationAnalysisLLM,
+      wordDiff,                                     // 원문 비교 결과 (reference 모드에서만 채워짐)
+      historyNote,
     });
   } catch (err) {
     // 에러 처리: ffmpeg 관련 에러는 503, 그 외는 500 응답
