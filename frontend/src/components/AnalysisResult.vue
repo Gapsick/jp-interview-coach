@@ -68,6 +68,7 @@
         <div class="diff-counts">
           <span v-if="wrongCount > 0" class="diff-cnt wrong">오발음 {{ wrongCount }}개</span>
           <span v-if="missingCount > 0" class="diff-cnt missing">누락 {{ missingCount }}개</span>
+          <span v-if="minorCount > 0" class="diff-cnt minor">표기 차이 {{ minorCount }}개</span>
           <span v-if="wrongCount === 0 && missingCount === 0" class="diff-cnt perfect">완벽!</span>
         </div>
       </div>
@@ -78,25 +79,28 @@
           v-for="(item, i) in wordDiff"
           :key="i"
           class="diff-token"
-          :class="'token-' + item.status"
+          :class="tokenClass(item)"
         >
-          <!-- 원문 단어 -->
-          <span class="token-ref">{{ item.ref }}</span>
-          <!-- 오발음: 아래에 인식된 단어 표시 -->
-          <span v-if="item.status === 'wrong' && item.heard" class="token-heard">{{ item.heard }}</span>
-          <!-- 누락: 아이콘 표시 -->
-          <span v-else-if="item.status === 'missing'" class="token-missing-mark">빠짐</span>
+          <!-- equal: 원문 그대로 정확히 발음 -->
+          <span class="token-ref">{{ item.ref || item.hyp }}</span>
+          <!-- replace: severity에 따라 레이블/인식 단어 표시 -->
+          <span v-if="item.kind === 'replace' && item.severity === 'low'" class="token-minor-label">표기 차이</span>
+          <span v-else-if="item.kind === 'replace' && item.hyp" class="token-heard">{{ item.hyp }}</span>
+          <!-- delete: 원문 단어를 발음하지 않음 -->
+          <span v-else-if="item.kind === 'delete'" class="token-missing-mark">빠짐</span>
+          <!-- insert: STT에만 있는 단어 (원문에 없음) -->
+          <span v-else-if="item.kind === 'insert'" class="token-heard">+추가</span>
         </span>
       </div>
 
-      <!-- 오발음 목록 요약 (wrong 항목만 모아서) -->
+      <!-- 오발음 목록 요약 (replace 항목만 모아서) -->
       <div v-if="wrongItems.length" class="wrong-list">
         <p class="wrong-list-title">오발음 상세</p>
         <div class="wrong-list-items">
           <span v-for="(item, i) in wrongItems" :key="i" class="wrong-list-item">
             <span class="wl-ref">{{ item.ref }}</span>
             <span class="wl-arrow">→</span>
-            <span class="wl-heard">{{ item.heard }}</span>
+            <span class="wl-heard">{{ item.hyp }}</span>
           </span>
         </div>
       </div>
@@ -186,13 +190,34 @@ const props = defineProps({
 defineEmits(['reset']);
 
 // 오발음/누락 카운트 (헤더 표시용)
-const wrongCount = computed(() => props.wordDiff.filter(w => w.status === 'wrong').length);
-const missingCount = computed(() => props.wordDiff.filter(w => w.status === 'missing').length);
-
-// 오발음 상세 목록 (heard가 있는 것만)
-const wrongItems = computed(() =>
-  props.wordDiff.filter(w => w.status === 'wrong' && w.heard)
+// wrongCount: severity high/medium replace (실제 오발음)
+// minorCount: severity low replace (표기 차이 - 오류 아님)
+// missingCount: delete (발음 빠뜨림)
+const wrongCount = computed(() =>
+  props.wordDiff.filter(w => w.kind === 'replace' && w.severity !== 'low').length
 );
+const missingCount = computed(() => props.wordDiff.filter(w => w.kind === 'delete').length);
+const minorCount = computed(() =>
+  props.wordDiff.filter(w => w.kind === 'replace' && w.severity === 'low').length
+);
+
+// 오발음 상세 목록: low severity(표기 차이)는 제외
+const wrongItems = computed(() =>
+  props.wordDiff.filter(w => w.kind === 'replace' && w.hyp && w.severity !== 'low')
+);
+
+// diff 항목의 CSS 클래스 결정 (severity 반영)
+function tokenClass(item) {
+  if (item.kind === 'equal') return 'token-correct';
+  if (item.kind === 'delete') return 'token-missing';
+  if (item.kind === 'insert') return 'token-insert';
+  if (item.kind === 'replace') {
+    if (item.severity === 'low') return 'token-minor';    // 표기 차이 (노란 점선)
+    if (item.severity === 'medium') return 'token-warn';  // 경미 오류 (주황 물결)
+    return 'token-wrong';                                  // 중요 오류 (빨간 물결)
+  }
+  return '';
+}
 
 function scoreClass(score) {
   if (score >= 80) return 'score-good';
@@ -302,6 +327,7 @@ function speedLabel(rating) {
 }
 .diff-cnt.wrong   { background: rgba(220,38,38,0.1); color: #dc2626; }
 .diff-cnt.missing { background: rgba(107,114,128,0.1); color: #6b7280; }
+.diff-cnt.minor   { background: rgba(234,179,8,0.1); color: #a16207; }
 .diff-cnt.perfect { background: rgba(22,163,74,0.1); color: #15803d; }
 
 /* 인라인 형태소 흐름 */
@@ -352,6 +378,52 @@ function speedLabel(rating) {
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* medium severity의 heard는 주황 */
+.token-warn .token-heard {
+  color: #c2410c;
+}
+
+/* 표기 차이 (low severity): 노란 점선 - 오류 아님 */
+.token-minor {
+  background: rgba(234,179,8,0.07);
+  border-radius: 6px;
+}
+.token-minor .token-ref {
+  font-size: 1rem;
+  color: #a16207;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: rgba(161,98,7,0.5);
+  line-height: 1.4;
+}
+.token-minor-label {
+  font-size: 0.6rem;
+  color: #a16207;
+  margin-top: 2px;
+}
+
+/* 경미한 오발음 (medium severity): 주황 물결 */
+.token-warn {
+  background: rgba(234,88,12,0.06);
+  border-radius: 6px;
+}
+.token-warn .token-ref {
+  font-size: 1rem;
+  color: #ea580c;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: rgba(234,88,12,0.5);
+  line-height: 1.4;
+}
+
+/* STT에만 있는 단어: 연보라 */
+.token-insert .token-ref {
+  font-size: 1rem;
+  color: #7c3aed;
+  font-style: italic;
+  line-height: 1.4;
 }
 
 /* 누락: 취소선 회색 */

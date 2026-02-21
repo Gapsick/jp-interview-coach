@@ -19,6 +19,7 @@ import { extractAudioFromVideo, getAudioDuration, toSttReadyAudio } from '../ser
 import { transcribe } from '../services/transcription.js';
 import { analyzeTranscript, analyzePronunciation } from '../services/transcriptAnalyzer.js';
 import { generateCoachingFeedback } from '../services/coachingLLM.js';
+import { diffTexts } from '../services/textDiff.js';
 import { getOrCreateSession, addResult, getSession, type AnalysisResult } from '../services/sessionStore.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -154,22 +155,31 @@ uploadRouter.post('/analyze', upload.single('file'), async (req: MulterRequest, 
     const currentSession = await getSession(sessionId);
     const previousHistory = currentSession?.history ?? [];
 
-    // ========== 4단계: LLM 코칭 피드백 생성 ==========
-    // referenceText가 있으면 원문 비교 모드, 없으면 발음 수치 기반 모드
+    // ========== 4단계: 알고리즘 diff (reference 모드에서만) ==========
+    // LLM 대신 diff-match-patch 알고리즘으로 원문 vs STT 비교
+    // → 결정적이고 정확한 결과, 구두점/동음이자 자동 처리
+    const wordDiff = referenceText
+      ? await diffTexts(referenceText, trimmedTranscript)
+      : [];
+
+    // ========== 5단계: LLM 코칭 피드백 생성 ==========
+    // referenceText가 있으면 diff 결과를 넘겨서 코칭만 생성
+    // 없으면 발음 수치 기반 free 모드
     const coaching = await generateCoachingFeedback(
       trimmedTranscript,
       issues,
       pronunciation,
       previousHistory,
       referenceText,
+      wordDiff.length > 0 ? wordDiff : undefined,
     );
     const {
       topIssues, pronunciationTips, practiceSentences,
       overallScore, pronunciationAnalysis: pronunciationAnalysisLLM,
-      wordDiff, historyNote,
+      historyNote,
     } = coaching;
 
-    // ========== 5단계: 세션에 결과 저장 ==========
+    // ========== 6단계: 세션에 결과 저장 ==========
     // 분석 결과를 세션 히스토리에 추가 (MongoDB에 영구 저장)
     const result: AnalysisResult = {
       transcript: trimmedTranscript,
@@ -183,7 +193,7 @@ uploadRouter.post('/analyze', upload.single('file'), async (req: MulterRequest, 
     // await 추가: MongoDB에 분석 결과를 저장하는 비동기 작업
     await addResult(sessionId, result);
 
-    // ========== 6단계: 클라이언트에 응답 ==========
+    // ========== 7단계: 클라이언트에 응답 ==========
     return res.json({
       sessionId,
       status: 'success',
