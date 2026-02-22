@@ -40,7 +40,7 @@ export type CoachingFeedback = {
   // UI 리스트용
   topIssues: string[];
   pronunciationTips: string[];
-  practiceSentences: string[];
+  trainingRoutine: string[];   // 3분 훈련 루틴 (단계별 반복 지시 포함)
 
   // 종합 점수
   overallScore: number;
@@ -131,8 +131,9 @@ Inputs:
 Your job:
 - Interpret the diff errors and give pronunciation coaching
 - For "orthography" reason errors: mention they are same pronunciation, different kanji — NOT a pronunciation error
-- For "meaning_change" errors: these are actual mispronunciations — give specific tips
-- Focus on pronunciation accuracy, fluency, speed, clarity
+- For "meaning_change" errors: these are actual mispronunciations — design targeted drills
+- Design a 3-minute training routine based on the top 1-2 errors found in the diff
+- Routine format: header line (🎯 today's focus) + 3 numbered drill steps with repetition count and speed instruction
 
 Hard rules:
 - Do NOT give content-based advice — this is reading practice
@@ -152,7 +153,12 @@ Return JSON in EXACT format:
   "summary": {
     "topIssues": ["Korean: specific mispronounced word + why"],
     "pronunciationTips": ["Korean tip 1", "Korean tip 2"],
-    "practiceSentences": ["Japanese practice sentence 1", "Japanese practice sentence 2"]
+    "trainingRoutine": [
+      "🎯 오늘의 집중: [top diff error — specific phoneme or word]",
+      "1️⃣ [ref word] / [hyp word] 교차 10회 (70% 속도)",
+      "2️⃣ 「[ref word in context phrase]」 5회",
+      "3️⃣ 문장 전체를 자연스러운 속도로 3회"
+    ]
   },
   "historyNote": "Korean: 1-2 trend observations if previousHistory exists, else empty string"
 }`;
@@ -188,7 +194,12 @@ Return JSON in EXACT format:
   "summary": {
     "topIssues": ["Korean issue 1", "Korean issue 2", "Korean issue 3"],
     "pronunciationTips": ["Korean tip 1", "Korean tip 2", "Korean tip 3"],
-    "practiceSentences": ["Japanese practice sentence 1", "Japanese practice sentence 2"]
+    "trainingRoutine": [
+      "Korean: 🎯 오늘의 집중: [top acoustic issue e.g. 말하기 속도 / 긴 쉼]",
+      "Korean: 1️⃣ [specific drill targeting the issue] N회",
+      "Korean: 2️⃣ [next drill step] N회",
+      "Korean: 3️⃣ [full sentence/passage practice] N회 - [speed/pause instruction]"
+    ]
   },
   "historyNote": "Korean: 1-2 trend observations if previousHistory exists, else empty string"
 }`;
@@ -215,7 +226,7 @@ export async function generateCoachingFeedback(
   const empty: CoachingFeedback = {
     topIssues: [],
     pronunciationTips: [],
-    practiceSentences: [],
+    trainingRoutine: [],
     overallScore: 0,
     pronunciationAnalysis: { wpm: 0, evaluation: '', evidence: '', tips: [] },
     historyNote: '',
@@ -277,7 +288,7 @@ export async function generateCoachingFeedback(
     return {
       topIssues: Array.isArray(summary.topIssues) ? summary.topIssues : [],
       pronunciationTips: Array.isArray(summary.pronunciationTips) ? summary.pronunciationTips : [],
-      practiceSentences: Array.isArray(summary.practiceSentences) ? summary.practiceSentences : [],
+      trainingRoutine: Array.isArray(summary.trainingRoutine) ? summary.trainingRoutine : [],
       overallScore: typeof parsed.overallScore === 'number' ? parsed.overallScore : 0,
       pronunciationAnalysis: {
         wpm: parsed.pronunciationAnalysis?.wpm ?? 0,

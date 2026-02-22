@@ -77,7 +77,7 @@ type MulterRequest = Request & { file?: Express.Multer.File };
  *   - transcript: 인식된 텍스트
  *   - topIssues: 주요 개선점 목록
  *   - pronunciationTips: 발음 팁 목록
- *   - practiceSentences: 연습 문장 목록
+ *   - trainingRoutine: 3분 훈련 루틴 목록
  */
 uploadRouter.post('/analyze', upload.single('file'), async (req: MulterRequest, res: Response) => {
   // req.user는 authMiddleware가 설정한 인증된 사용자 정보 (SafeUser 타입)
@@ -174,7 +174,7 @@ uploadRouter.post('/analyze', upload.single('file'), async (req: MulterRequest, 
       wordDiff.length > 0 ? wordDiff : undefined,
     );
     const {
-      topIssues, pronunciationTips, practiceSentences,
+      topIssues, pronunciationTips, trainingRoutine,
       overallScore, pronunciationAnalysis: pronunciationAnalysisLLM,
       historyNote,
     } = coaching;
@@ -186,7 +186,7 @@ uploadRouter.post('/analyze', upload.single('file'), async (req: MulterRequest, 
       issues,
       topIssues,
       pronunciationTips,
-      practiceSentences,
+      trainingRoutine,
       pronunciation, // Whisper 기반 발음 분석 결과
       rawAnalysis: { transcriptLength: trimmedTranscript.length },
     };
@@ -201,7 +201,7 @@ uploadRouter.post('/analyze', upload.single('file'), async (req: MulterRequest, 
       transcriptWarning,                            // 짧은 녹음 경고 (있을 때만)
       topIssues,                                    // 주요 개선점 목록
       pronunciationTips,                            // 발음 팁 목록
-      practiceSentences,                            // 연습 문장 목록
+      trainingRoutine,                              // 3분 훈련 루틴
       pronunciation,                                // Whisper 발음 분석 결과
       // LLM 코칭 데이터
       overallScore,

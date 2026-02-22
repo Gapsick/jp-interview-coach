@@ -18,7 +18,7 @@
  *       issues: [{ id: "filler", name: "...", severity: "medium" }],
  *       topIssues: ["개선점1", "개선점2"],
  *       pronunciationTips: ["팁1", "팁2"],
- *       practiceSentences: ["연습문장1", "연습문장2"]
+ *       trainingRoutine: ["🎯 오늘의 집중: ...", "1️⃣ ... 10회", "2️⃣ ... 5회", "3️⃣ ... 3회"]
  *     },
  *     { ... 두 번째 분석 결과 ... }
  *   ],
@@ -102,7 +102,7 @@ export type AnalysisResult = {
   issues: RuleIssue[];             // 규칙 분석에서 검출된 이슈 목록
   topIssues: string[];             // LLM이 생성한 주요 개선점
   pronunciationTips: string[];     // LLM이 생성한 발음 팁
-  practiceSentences: string[];     // LLM이 생성한 연습 문장
+  trainingRoutine: string[];       // LLM이 생성한 3분 훈련 루틴 (단계별)
   pronunciation?: PronunciationAnalysis; // 발음 분석 결과 (Whisper 단어 타임스탬프 기반)
   rawAnalysis?: Record<string, unknown>; // 기타 원본 분석 데이터
 };
@@ -158,7 +158,7 @@ const historyItemSchema = new mongoose.Schema(
     // - 여기서는 string 배열(["문장1", "문장2"])을 저장하는데 사용
     topIssues: [{ type: String }],                  // 주요 개선점 문자열 배열
     pronunciationTips: [{ type: String }],          // 발음 팁 문자열 배열
-    practiceSentences: [{ type: String }],          // 연습 문장 문자열 배열
+    trainingRoutine: [{ type: String }],             // 3분 훈련 루틴 문자열 배열
 
     // 발음 분석 결과 (Whisper 단어 타임스탬프 기반)
     // Mixed 타입: PronunciationAnalysis 객체를 그대로 저장
