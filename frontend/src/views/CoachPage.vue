@@ -94,7 +94,7 @@
         :word-diff="result.wordDiff"
         :top-issues="result.topIssues"
         :pronunciation-tips="result.pronunciationTips"
-        :practice-sentences="result.practiceSentences"
+        :training-routine="result.trainingRoutine"
         :pronunciation="result.pronunciation"
         :overall-score="result.overallScore"
         :pronunciation-analysis-l-l-m="result.pronunciationAnalysisLLM"
@@ -164,11 +164,11 @@
             </ul>
           </div>
 
-          <!-- 연습 문장 -->
-          <div v-if="selectedHistory.practiceSentences?.length" class="detail-section">
-            <p class="detail-label">연습 문장</p>
+          <!-- 훈련 루틴 -->
+          <div v-if="selectedHistory.trainingRoutine?.length" class="detail-section">
+            <p class="detail-label">훈련 루틴</p>
             <ul class="detail-list">
-              <li v-for="(sent, i) in selectedHistory.practiceSentences" :key="i">{{ sent }}</li>
+              <li v-for="(step, i) in selectedHistory.trainingRoutine" :key="i">{{ step }}</li>
             </ul>
           </div>
 
@@ -313,7 +313,7 @@ async function runAnalysis(file) {
         wordDiff: data.wordDiff ?? [],                   // 원문 비교 결과
         topIssues: data.topIssues ?? [],
         pronunciationTips: data.pronunciationTips ?? [],
-        practiceSentences: data.practiceSentences ?? [],
+        trainingRoutine: data.trainingRoutine ?? [],
         pronunciation: data.pronunciation ?? null,
         overallScore: data.overallScore ?? null,
         pronunciationAnalysisLLM: data.pronunciationAnalysisLLM ?? null,

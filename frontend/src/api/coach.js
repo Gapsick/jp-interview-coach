@@ -24,7 +24,7 @@ const API_BASE = '/api';
  *   - transcript: 인식된 텍스트
  *   - topIssues: 주요 개선점 배열
  *   - pronunciationTips: 발음 팁 배열
- *   - practiceSentences: 연습 문장 배열
+ *   - trainingRoutine: 3분 훈련 루틴 배열
  *   - error: 에러 메시지 (에러 시)
  */
 export async function analyzeFile(file, sessionId, referenceText) {
