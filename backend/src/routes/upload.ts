@@ -108,7 +108,7 @@ uploadRouter.post('/analyze', upload.single('file'), async (req: MulterRequest, 
     let audioPath = filePath;
     if (isVideo) {
       audioPath = await extractAudioFromVideo(filePath, uploadDir);
-    } else if (mimeType === 'audio/webm' || mimeType === 'audio/ogg') {
+    } else if (mimeType.startsWith('audio/webm') || mimeType.startsWith('audio/ogg')) {
       try {
         audioPath = await toSttReadyAudio(filePath, mimeType, uploadDir);
       } catch {

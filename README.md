@@ -1,105 +1,146 @@
-# Interview Pronunciation Coach Agent
+# JP Interview Coach
 
-일본어 면접 발음 연습을 위한 AI 에이전트. 녹음/영상 업로드 후 **한 번에 분석**하고, 상위 2개 발음 이슈와 다음 연습 문장 2개를 제안합니다.
+このプロジェクトの README は日本語と韓国語で提供されています。
+이 프로젝트의 README는 일본어와 한국어로 제공됩니다.
 
-## 목표
+- [日本語 (Japanese)](README.md)
+- [한국어 (Korean)](README_ko.md)
 
-- **명확한 목표**: 일본어 면접 발음·클리어리티 개선
-- **사용자 상태 저장**: 세션별 분석 이력 저장 (다음 액션 결정용)
-- **액션 결정**: 단순 1회 분석이 아니라, 이력 기반 다음 연습 제안
+---
 
-## MVP 범위
+## 目次
 
-- **프론트엔드 (Vue)**: 영상(MP4) 업로드 또는 브라우저 녹음 → 처리 상태 표시 → 분석 결과(상위 2 이슈, 연습 문장 2개)
-- **백엔드 (Express)**: 업로드 API, 영상 시 ffmpeg로 음원 추출, STT(일본어), 규칙 기반 분석, LLM 코칭 피드백, 세션 저장
+1. [プロジェクト概要](#プロジェクト概要)
+2. [主な機能](#主な機能)
+3. [システム構成](#システム構成)
+4. [技術スタック](#技術スタック)
+5. [技術的課題と解決](#技術的課題と解決)
+6. [設計で工夫した点](#設計で工夫した点)
+7. [実行方法](#実行方法)
 
-## 폴더 구조
+---
+
+## プロジェクト概要
+
+日本語面接を準備している人が、一人でも発音をチェックし改善できるように作られた
+AI ベースのコーチングサービスです。
+
+面接の映像や音声をアップロードすると、話す速度・間の取り方・発音の明瞭度を数値で分析し、
+過去の練習記録を基に、今日重点的に取り組む 3 分間のトレーニングルーチンを提案します。
+
+単なる一回限りの分析ツールではなく、練習を重ねるほどより正確なフィードバックを提供する
+**累積型コーチング構造**として設計しました。
+
+---
+
+## 主な機能
+
+### リファレンスモード
+入力した文章を録音すると、原文と実際の発話を単語単位で比較。
+誤り・欠落・追加された単語を視覚的に表示し、重大度（高 / 中 / 低）を提示します。
+
+### 自由発話モード
+決まった文章がなくても自由に話した内容を分析できます。
+話す速度（WPM）・ポーズの回数・Whisper の認識信頼度をもとに、発音品質スコア（0〜100）を算出します。
+
+### 3 分トレーニングルーチン
+分析結果をもとに、その日に修正すべき箇所を集中的に練習する 3 段階ドリルを提示します。
+実際に間違えた単語を繰り返し練習する仕組みのため、一般的な例文推薦より効果的です。
+
+### 累積コーチング
+ログインユーザーの練習履歴を蓄積し、AI が直近 5 回の記録を参照して
+「前回よりフィラーが減っていますね」のような文脈のあるフィードバックを提供します。
+
+---
+
+## システム構成
 
 ```
-interview-agent/
-├── backend/                 # Express API
-│   ├── src/
-│   │   ├── index.js         # 진입점, CORS, 라우트
-│   │   ├── config.js        # 환경 변수
-│   │   ├── routes/
-│   │   │   └── upload.js    # POST /api/analyze (multipart)
-│   │   └── services/
-│   │       ├── audioExtractor.js   # ffmpeg 영상→음원
-│   │       ├── transcription.js   # STT (Whisper)
-│   │       ├── transcriptAnalyzer.js  # 규칙 기반 분석
-│   │       ├── coachingLLM.js      # LLM 피드백
-│   │       └── sessionStore.js     # 세션/이력 저장
-│   ├── uploads/             # 임시 업로드 (gitignore)
-│   ├── data/                # sessions.json (선택)
-│   ├── package.json
-│   └── .env.example
-├── frontend/                # Vue 3 + Vite
-│   ├── src/
-│   │   ├── main.js
-│   │   ├── App.vue
-│   │   ├── views/
-│   │   │   └── CoachPage.vue
-│   │   ├── components/
-│   │   │   ├── FileUpload.vue
-│   │   │   ├── AudioRecorder.vue
-│   │   │   ├── ProcessingStatus.vue
-│   │   │   └── AnalysisResult.vue
-│   │   └── api/
-│   │       └── coach.js
-│   ├── index.html
-│   ├── vite.config.js
-│   └── package.json
-├── README.md
-└── .gitignore
+音声入力（録音 or ファイルアップロード）
+        ↓
+  [FFmpeg]  動画 → 音声抽出・形式変換
+        ↓
+  [Whisper]  音声 → テキスト + 単語タイムスタンプ + 信頼度スコア
+        ↓
+  [Transcript Analyzer]  WPM・休止回数・明瞭度をアルゴリズムで数値化
+        ↓
+  [Diff エンジン]  原文 vs 認識結果を単語単位で比較（リファレンスモード）
+        ↓
+  [GPT-4o-mini]  数値データをもとにコーチングフィードバック・ルーチン生成
+        ↓
+  [MongoDB]  セッション保存 → 累積フィードバックへ活用
 ```
 
-## 실행 방법
+---
 
-### 요구 사항
+## 技術スタック
 
-- Node.js 18+
-- **ffmpeg** (영상 업로드 시 음원 추출용, PATH에 설치)
-- OpenAI API 키 (Whisper STT + 코칭 LLM). 없으면 mock 응답 사용 가능
+| カテゴリ | 技術 |
+|----------|------|
+| Frontend | Vue 3 (Composition API) · Vite |
+| Backend | Node.js · Express · TypeScript |
+| Speech AI | OpenAI Whisper API |
+| Audio Processing | FFmpeg |
+| AI Coaching | OpenAI GPT-4o-mini |
+| Database | MongoDB · Mongoose |
+| Authentication | JWT · bcryptjs |
+| Infrastructure | Docker · Docker Compose · nginx |
 
-### 백엔드
+---
+
+## 技術的課題と解決
+
+**Problem**
+
+同じ録音データを送信しても、異なるフィードバックが生成される問題が発生しました。
+LLM が主観的に評価する構造だったため評価基準が安定せず、
+ユーザーが実際の上達を確認しにくい状態でした。
+
+**Solution**
+
+ユーザーが「読むべき文章」を直接入力できる仕組みを導入し、比較対象となる正解データを固定しました。
+評価はアルゴリズム（距離計算）が担当し、LLM は分析結果をユーザーが理解できる言語へ変換する役割のみに分離しました。
+
+**Result**
+
+同じ録音データに対して常に同じ比較結果が得られるようになり、評価の一貫性を確保。
+フィードバックも常に実際の分析データに基づいて生成されるようになりました。
+
+---
+
+## 設計で工夫した点
+
+**LLM が根拠なく評価しないように評価構造を設計しました。**
+
+LLM に「発音を評価して」と任せると、実際の音声を直接評価できず、
+文字情報のみを基に判断してしまうためハルシネーションが起きる可能性がありました。
+
+そこで LLM が介入する前に Whisper のデータを基に
+話速・休止回数・認識信頼度を数値として測定し、その数値を評価の根拠として渡す構造にしました。
+**LLM は評価を行うのではなく、すでに測定された結果を解釈する役割のみを担います。**
+
+---
+
+## 実行方法
+
+### 必要なもの
+- Docker / Docker Compose
+- OpenAI API キー
+
+### セットアップ
 
 ```bash
-cd backend
-cp .env.example .env
-# .env에 OPENAI_API_KEY=sk-... 설정 (선택)
-npm install
-npm run dev
+git clone <repository-url>
+cd jp-interview-coach
+
+# 環境変数を設定
+cp backend/.env.example backend/.env
+# OPENAI_API_KEY を入力
+
+# 起動
+docker-compose up --build
 ```
 
-- API: `http://localhost:3000`
-- 분석: `POST /api/analyze` (multipart: `file`, 선택 `sessionId`)
+アプリ: http://localhost
 
-### 프론트엔드
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-- 앱: `http://localhost:5173` (Vite가 `/api`를 백엔드 3000으로 프록시)
-
-### 동작 흐름
-
-1. 사용자가 **영상(MP4)** 또는 **브라우저 녹음(webm)** 업로드
-2. 백엔드: 영상이면 ffmpeg로 음원 추출 → 동일 파이프라인으로 STT → 규칙 기반 분석 → LLM 피드백 → 세션에 결과 저장
-3. 프론트: 처리 상태 표시 후, **상위 2개 발음 이슈**와 **다음 연습 문장 2개** 표시
-
-## 환경 변수 (backend/.env)
-
-| 변수 | 설명 |
-|------|------|
-| `PORT` | 서버 포트 (기본 3000) |
-| `OPENAI_API_KEY` | Whisper + GPT 코칭용. 없으면 mock |
-| `USE_MOCK_STT` | true 시 STT mock |
-| `USE_MOCK_LLM` | true 시 LLM mock |
-
-## 제약
-
-- **실시간 스트리밍 아님**: 녹음/업로드 완료 후 한 번에 분석
-- 영상·음성 모두 **동일 분석 파이프라인** 사용
+> ※ OpenAI API の利用コストを考慮し、公開デプロイは行っていません。

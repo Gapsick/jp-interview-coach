@@ -147,12 +147,12 @@ Return JSON in EXACT format:
   "pronunciationAnalysis": {
     "wpm": number,
     "evaluation": "good|fast|slow|too_fast|too_slow",
-    "evidence": "Korean: specific explanation using the metrics",
-    "tips": ["Korean tip 1", "Korean tip 2", "Korean tip 3"]
+    "evidence": "발음 수치를 근거로 한 설명",
+    "tips": ["팁 1", "팁 2", "팁 3"]
   },
   "summary": {
-    "topIssues": ["Korean: specific mispronounced word + why"],
-    "pronunciationTips": ["Korean tip 1", "Korean tip 2"],
+    "topIssues": ["잘못 발음한 단어 + 이유"],
+    "pronunciationTips": ["팁 1", "팁 2"],
     "trainingRoutine": [
       "🎯 오늘의 집중: [top diff error — specific phoneme or word]",
       "1️⃣ [ref word] / [hyp word] 교차 10회 (70% 속도)",
@@ -160,7 +160,7 @@ Return JSON in EXACT format:
       "3️⃣ 문장 전체를 자연스러운 속도로 3회"
     ]
   },
-  "historyNote": "Korean: 1-2 trend observations if previousHistory exists, else empty string"
+  "historyNote": "이전 세션과의 트렌드 관찰 (없으면 빈 문자열)"
 }`;
 
 /**
@@ -188,20 +188,20 @@ Return JSON in EXACT format:
   "pronunciationAnalysis": {
     "wpm": number,
     "evaluation": "good|fast|slow|too_fast|too_slow",
-    "evidence": "Korean: explanation using the provided metrics",
-    "tips": ["Korean tip 1", "Korean tip 2", "Korean tip 3"]
+    "evidence": "발음 수치를 근거로 한 설명",
+    "tips": ["팁 1", "팁 2", "팁 3"]
   },
   "summary": {
-    "topIssues": ["Korean issue 1", "Korean issue 2", "Korean issue 3"],
-    "pronunciationTips": ["Korean tip 1", "Korean tip 2", "Korean tip 3"],
+    "topIssues": ["이슈 1", "이슈 2", "이슈 3"],
+    "pronunciationTips": ["팁 1", "팁 2", "팁 3"],
     "trainingRoutine": [
-      "Korean: 🎯 오늘의 집중: [top acoustic issue e.g. 말하기 속도 / 긴 쉼]",
-      "Korean: 1️⃣ [specific drill targeting the issue] N회",
-      "Korean: 2️⃣ [next drill step] N회",
-      "Korean: 3️⃣ [full sentence/passage practice] N회 - [speed/pause instruction]"
+      "🎯 오늘의 집중: [top acoustic issue e.g. 말하기 속도 / 긴 쉼]",
+      "1️⃣ [specific drill targeting the issue] N회",
+      "2️⃣ [next drill step] N회",
+      "3️⃣ [full sentence/passage practice] N회 - [speed/pause instruction]"
     ]
   },
-  "historyNote": "Korean: 1-2 trend observations if previousHistory exists, else empty string"
+  "historyNote": "이전 세션과의 트렌드 관찰 (없으면 빈 문자열)"
 }`;
 
 /**
