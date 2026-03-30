@@ -35,6 +35,8 @@ AI 기반 코칭 서비스입니다.
 
 ## 주요 기능
 
+![demo](assets/demo.gif)
+
 ### 레퍼런스 모드
 입력한 문장을 녹음하면, 원문과 실제 발화를 단어 단위로 비교합니다.
 오류·누락·추가된 단어를 시각적으로 표시하고 심각도(상 / 중 / 하)를 제시합니다.
@@ -51,9 +53,13 @@ AI 기반 코칭 서비스입니다.
 로그인 유저의 연습 기록을 누적하여, AI가 최근 5회의 기록을 참조해
 "저번보다 필러가 줄었네요" 같은 맥락 있는 피드백을 제공합니다.
 
+![screenshot](assets/screenshot.png)
+
 ---
 
 ## 시스템 구성
+
+![diagram](assets/diagram.png)
 
 ```
 음성 입력 (녹음 또는 파일 업로드)
@@ -140,7 +146,5 @@ cp backend/.env.example backend/.env
 # 실행
 docker-compose up --build
 ```
-
-앱: http://localhost
 
 > ※ OpenAI API 이용 비용을 고려해 공개 배포는 하지 않습니다.
